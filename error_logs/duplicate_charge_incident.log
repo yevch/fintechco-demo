@@ -1,0 +1,10 @@
+2026-02-24 09:14:32.118 [WARNING] payment_processor - Duplicate transaction detected by reconciliation: customer C-4892 charged twice for idempotency_key=PAY-2026-0224-4892-001
+2026-02-24 09:14:32.119 [INFO] Details: txn_1=a3f8c2d1-... amount=2499.99 USD status=completed, txn_2=7b1e4a09-... amount=2499.99 USD status=completed
+2026-02-24 09:14:32.120 [WARNING] Both transactions reference same idempotency_key but have different transaction IDs
+2026-02-24 09:15:01.445 [WARNING] payment_processor - Duplicate transaction detected by reconciliation: customer C-7231 charged twice for idempotency_key=PAY-2026-0224-7231-003
+2026-02-24 09:15:01.446 [INFO] Details: txn_1=e9d2f3a7-... amount=849.00 USD status=completed, txn_2=1c5b8e4f-... amount=849.00 USD status=completed
+2026-02-24 09:22:17.891 [ERROR] reconciliation - Settlement mismatch: expected $142,380.00 but gateway reports $147,228.99. Difference: $4,848.99 across 3 duplicate pairs.
+2026-02-24 09:22:17.892 [ERROR] reconciliation - Affected customers: C-4892 ($2499.99), C-7231 ($849.00), C-1055 ($1500.00)
+2026-02-24 09:22:18.001 [INFO] All duplicates occurred during batch payment processing (POST /api/v1/payments/batch)
+2026-02-24 09:22:18.002 [INFO] All affected transactions have idempotency_keys set, suggesting the idempotency check failed under concurrent load
+2026-02-24 09:23:45.112 [WARNING] support - 3 customer complaints received about duplicate charges in the last hour
