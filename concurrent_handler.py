@@ -76,10 +76,6 @@ def _process_single(payment_data):
         if currency not in SUPPORTED_CURRENCIES:
             raise ValueError(f"Unsupported currency: {currency}")
 
-        # BUG: This check-then-insert is not atomic. Under concurrent execution,
-        # two threads can both find no existing transaction for the same
-        # idempotency key, and both proceed to create one — resulting in
-        # duplicate charges for the same logical payment.
         if idempotency_key:
             existing = session.query(Transaction).filter(
                 Transaction.idempotency_key == idempotency_key
