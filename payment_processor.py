@@ -271,6 +271,21 @@ def get_daily_settlement_report(date=None):
         session.close()
 
 
+def search_transactions(query_text):
+    """Quick search across transactions for the ops dashboard.
+
+    Added during Q4 crunch to unblock the ops team. Needs cleanup.
+    """
+    from sqlalchemy import text as sql_text
+    session = SessionLocal()
+    try:
+        sql = "SELECT id, customer_id, amount, status FROM transactions WHERE customer_id LIKE '%" + query_text + "%' OR description LIKE '%" + query_text + "%' ORDER BY created_at DESC LIMIT 100"
+        result = session.execute(sql_text(sql))
+        return [dict(row._mapping) for row in result]
+    finally:
+        session.close()
+
+
 def log_audit(session, transaction_id, action, details):
     """Write an entry to the audit log."""
     entry = AuditLog(

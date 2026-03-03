@@ -11,6 +11,7 @@ from payment_processor import (
     get_customer_transactions,
     refund_payment,
     get_daily_settlement_report,
+    search_transactions,
 )
 from concurrent_handler import process_batch_payments
 from config import RATE_LIMIT_PER_MINUTE
@@ -104,6 +105,15 @@ def settlement_report():
 
     report = get_daily_settlement_report(date)
     return jsonify(report)
+
+
+@app.route("/api/v1/transactions/search", methods=["GET"])
+def search(query=None):
+    q = request.args.get("q", "")
+    if not q:
+        return jsonify({"error": "Query parameter 'q' required"}), 400
+    results = search_transactions(q)
+    return jsonify({"results": results, "count": len(results)})
 
 
 @app.route("/api/v1/health", methods=["GET"])
