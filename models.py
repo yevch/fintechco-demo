@@ -30,7 +30,7 @@ class Transaction(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     retry_count = Column(Integer, default=0)
-    idempotency_key = Column(String, nullable=True)
+    idempotency_key = Column(String, nullable=True, unique=True)
 
 
 class AuditLog(Base):

@@ -8,6 +8,7 @@ import uuid
 import time
 import logging
 from datetime import datetime, timedelta
+from sqlalchemy.exc import IntegrityError
 from models import SessionLocal, Transaction, AuditLog, PaymentStatus
 from config import MAX_RETRY_ATTEMPTS, SUPPORTED_CURRENCIES, FRAUD_THRESHOLD, PAYMENT_TIMEOUT_SECONDS
 
@@ -38,6 +39,19 @@ def process_payment(customer_id, amount, currency, merchant_id, description=None
             logger.warning(f"Fraud flag for customer {customer_id}: {fraud_result['reason']}")
             return {"status": "rejected", "reason": fraud_result["reason"]}
 
+        if idempotency_key:
+            existing = session.query(Transaction).filter(
+                Transaction.idempotency_key == idempotency_key
+            ).first()
+            if existing:
+                return {
+                    "transaction_id": existing.id,
+                    "status": existing.status.value,
+                    "amount": existing.amount,
+                    "currency": existing.currency,
+                    "duplicate": True,
+                }
+
         transaction_id = str(uuid.uuid4())
 
         txn = Transaction(
@@ -51,7 +65,20 @@ def process_payment(customer_id, amount, currency, merchant_id, description=None
             idempotency_key=idempotency_key
         )
         session.add(txn)
-        session.commit()
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            existing = session.query(Transaction).filter(
+                Transaction.idempotency_key == idempotency_key
+            ).first()
+            return {
+                "transaction_id": existing.id,
+                "status": existing.status.value,
+                "amount": existing.amount,
+                "currency": existing.currency,
+                "duplicate": True,
+            }
 
         log_audit(session, transaction_id, "CREATED", f"Payment of {amount} {currency} initiated")
 
