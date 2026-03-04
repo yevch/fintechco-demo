@@ -306,8 +306,12 @@ def search_transactions(query_text):
     from sqlalchemy import text as sql_text
     session = SessionLocal()
     try:
-        sql = "SELECT id, customer_id, amount, status FROM transactions WHERE customer_id LIKE '%" + query_text + "%' OR description LIKE '%" + query_text + "%' ORDER BY created_at DESC LIMIT 100"
-        result = session.execute(sql_text(sql))
+        sql = (
+            "SELECT id, customer_id, amount, status FROM transactions "
+            "WHERE customer_id LIKE :pattern OR description LIKE :pattern "
+            "ORDER BY created_at DESC LIMIT 100"
+        )
+        result = session.execute(sql_text(sql), {"pattern": f"%{query_text}%"})
         return [dict(row._mapping) for row in result]
     finally:
         session.close()
