@@ -9,6 +9,7 @@ import time
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from sqlalchemy.exc import IntegrityError
 from models import SessionLocal, Transaction, AuditLog, PaymentStatus
 from config import SUPPORTED_CURRENCIES, FRAUD_THRESHOLD
 
@@ -76,19 +77,6 @@ def _process_single(payment_data):
         if currency not in SUPPORTED_CURRENCIES:
             raise ValueError(f"Unsupported currency: {currency}")
 
-        if idempotency_key:
-            existing = session.query(Transaction).filter(
-                Transaction.idempotency_key == idempotency_key
-            ).first()
-            if existing:
-                return {
-                    "transaction_id": existing.id,
-                    "status": existing.status.value,
-                    "amount": existing.amount,
-                    "currency": existing.currency,
-                    "duplicate": True
-                }
-
         transaction_id = str(uuid.uuid4())
 
         txn = Transaction(
@@ -102,7 +90,23 @@ def _process_single(payment_data):
             idempotency_key=idempotency_key
         )
         session.add(txn)
-        session.commit()
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            if idempotency_key:
+                existing = session.query(Transaction).filter(
+                    Transaction.idempotency_key == idempotency_key
+                ).first()
+                if existing:
+                    return {
+                        "transaction_id": existing.id,
+                        "status": existing.status.value,
+                        "amount": existing.amount,
+                        "currency": existing.currency,
+                        "duplicate": True
+                    }
+            raise
 
         _log_audit(session, transaction_id, "CREATED", f"Batch payment: {amount} {currency}")
 

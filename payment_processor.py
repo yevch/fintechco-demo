@@ -8,6 +8,7 @@ import uuid
 import time
 import logging
 from datetime import datetime, timedelta
+from sqlalchemy.exc import IntegrityError
 from models import SessionLocal, Transaction, AuditLog, PaymentStatus
 from config import MAX_RETRY_ATTEMPTS, SUPPORTED_CURRENCIES, FRAUD_THRESHOLD, PAYMENT_TIMEOUT_SECONDS
 
@@ -33,6 +34,19 @@ def process_payment(customer_id, amount, currency, merchant_id, description=None
         if currency not in SUPPORTED_CURRENCIES:
             raise ValueError(f"Unsupported currency: {currency}. Supported: {SUPPORTED_CURRENCIES}")
 
+        if idempotency_key:
+            existing = session.query(Transaction).filter(
+                Transaction.idempotency_key == idempotency_key
+            ).first()
+            if existing:
+                return {
+                    "transaction_id": existing.id,
+                    "status": existing.status.value,
+                    "amount": existing.amount,
+                    "currency": existing.currency,
+                    "duplicate": True
+                }
+
         fraud_result = check_fraud(customer_id, amount, currency, session)
         if fraud_result["flagged"]:
             logger.warning(f"Fraud flag for customer {customer_id}: {fraud_result['reason']}")
@@ -51,7 +65,22 @@ def process_payment(customer_id, amount, currency, merchant_id, description=None
             idempotency_key=idempotency_key
         )
         session.add(txn)
-        session.commit()
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            existing = session.query(Transaction).filter(
+                Transaction.idempotency_key == idempotency_key
+            ).first()
+            if existing:
+                return {
+                    "transaction_id": existing.id,
+                    "status": existing.status.value,
+                    "amount": existing.amount,
+                    "currency": existing.currency,
+                    "duplicate": True
+                }
+            raise
 
         log_audit(session, transaction_id, "CREATED", f"Payment of {amount} {currency} initiated")
 
@@ -279,8 +308,12 @@ def search_transactions(query_text):
     from sqlalchemy import text as sql_text
     session = SessionLocal()
     try:
-        sql = "SELECT id, customer_id, amount, status FROM transactions WHERE customer_id LIKE '%" + query_text + "%' OR description LIKE '%" + query_text + "%' ORDER BY created_at DESC LIMIT 100"
-        result = session.execute(sql_text(sql))
+        sql = sql_text(
+            "SELECT id, customer_id, amount, status FROM transactions"
+            " WHERE customer_id LIKE :pattern OR description LIKE :pattern"
+            " ORDER BY created_at DESC LIMIT 100"
+        )
+        result = session.execute(sql, {"pattern": f"%{query_text}%"})
         return [dict(row._mapping) for row in result]
     finally:
         session.close()

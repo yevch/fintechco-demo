@@ -122,4 +122,5 @@ def health_check():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=8080)
+    import os
+    app.run(debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true", port=8080)
