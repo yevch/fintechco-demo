@@ -299,16 +299,21 @@ def get_daily_settlement_report(date=None):
 
 
 def search_transactions(query_text):
-    """Quick search across transactions for the ops dashboard.
-
-    Added during Q4 crunch to unblock the ops team. Needs cleanup.
-    """
-    from sqlalchemy import text as sql_text
+    """Search across transactions for the ops dashboard."""
+    from sqlalchemy import or_
     session = SessionLocal()
     try:
-        sql = "SELECT id, customer_id, amount, status FROM transactions WHERE customer_id LIKE '%" + query_text + "%' OR description LIKE '%" + query_text + "%' ORDER BY created_at DESC LIMIT 100"
-        result = session.execute(sql_text(sql))
-        return [dict(row._mapping) for row in result]
+        pattern = f"%{query_text}%"
+        txns = session.query(Transaction).filter(
+            or_(
+                Transaction.customer_id.ilike(pattern),
+                Transaction.description.ilike(pattern)
+            )
+        ).order_by(Transaction.created_at.desc()).limit(100).all()
+        return [
+            {"id": t.id, "customer_id": t.customer_id, "amount": t.amount, "status": t.status}
+            for t in txns
+        ]
     finally:
         session.close()
 
