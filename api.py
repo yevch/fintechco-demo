@@ -109,9 +109,11 @@ def settlement_report():
 
 @app.route("/api/v1/transactions/search", methods=["GET"])
 def search(query=None):
-    q = request.args.get("q", "")
+    q = request.args.get("q", "").strip()
     if not q:
         return jsonify({"error": "Query parameter 'q' required"}), 400
+    if len(q) > 200:
+        return jsonify({"error": "Query too long"}), 400
     results = search_transactions(q)
     return jsonify({"results": results, "count": len(results)})
 
